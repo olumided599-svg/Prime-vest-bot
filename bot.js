@@ -1,28 +1,36 @@
 const { Telegraf, Markup } = require("telegraf");
+const express = require("express");
+
 const bot = new Telegraf(process.env.TOKEN);
 
+// 🌐 KEEP RENDER ALIVE (VERY IMPORTANT)
+const app = express();
+app.get("/", (req, res) => res.send("Bot is running"));
+app.listen(process.env.PORT || 3000);
+
 // 🔐 CONFIG
-const ADMIN_ID = process.env.ADMIN_ID;
-const CHANNEL = "@starfordfreenumbers"; // MUST be public username
-const GROUP = "@primevestglobalinvestments"; // FIX this (must be public)
-const BOT_USERNAME = "Primevestglobal_bot"; // ❌ remove @
+const ADMIN_ID = Number(process.env.ADMIN_ID);
+
+// ⚠️ USE USERNAME ONLY (NO LINKS)
+const CHANNEL = "@starfordfreenumbers";
+const GROUP = "@primevestglobalinvestments";
+const BOT_USERNAME = "Primevestglobal_bot";
 
 // 📦 PACKAGES
 const packages = [3000,5000,10000,15000,20000,25000,40000,50000];
 
-// 🧠 MEMORY DB
+// 🧠 MEMORY
 let users = {};
 let pendingDeposits = {};
-let customDeposit = {};
 
-// 👤 GET USER
+// 👤 USER
 function getUser(id){
   if(!users[id]){
     users[id] = {
       balance: 500,
       deposited: 0,
       invested: 0,
-      plan: 0,
+      plan: null,
       start: null,
       referredBy: null,
       referrals: 0,
@@ -32,17 +40,17 @@ function getUser(id){
   return users[id];
 }
 
-// 🚫 FORCE JOIN (FIXED)
+// 🚫 FORCE JOIN FIXED
 async function checkJoin(ctx){
   try{
     let ch = await ctx.telegram.getChatMember(CHANNEL, ctx.from.id);
     let gr = await ctx.telegram.getChatMember(GROUP, ctx.from.id);
 
     if(["left","kicked"].includes(ch.status) || ["left","kicked"].includes(gr.status)){
-      ctx.reply(`🚫 Join first:
+      await ctx.reply(`🚫 Join first:
 
-Channel: https://t.me/${CHANNEL.replace("@","")}
-Group: https://t.me/${GROUP.replace("@","")}`);
+📢 Channel: ${CHANNEL}
+👥 Group: ${GROUP}`);
       return false;
     }
     return true;
@@ -69,15 +77,12 @@ bot.start(async (ctx)=>{
   if(!(await checkJoin(ctx))) return;
 
   let user = getUser(ctx.from.id);
-
   let ref = ctx.message.text.split(" ")[1];
 
   if(ref && ref != ctx.from.id && !user.referredBy){
     user.referredBy = ref;
-
     let refUser = getUser(ref);
-    refUser.referrals++;
-
+    refUser.referrals += 1;
     bot.telegram.sendMessage(ref, "🎉 New referral joined!");
   }
 
@@ -88,48 +93,43 @@ bot.start(async (ctx)=>{
 bot.hears("💳 Deposit", async (ctx)=>{
   if(!(await checkJoin(ctx))) return;
 
-  ctx.reply("💳 Choose Deposit Amount:", Markup.inlineKeyboard([
-    [Markup.button.callback("₦3000","dep_3000"),Markup.button.callback("₦5000","dep_5000")],
-    [Markup.button.callback("₦10000","dep_10000"),Markup.button.callback("₦15000","dep_15000")],
-    [Markup.button.callback("₦20000","dep_20000"),Markup.button.callback("₦25000","dep_25000")],
-    [Markup.button.callback("₦40000","dep_40000"),Markup.button.callback("₦50000","dep_50000")],
-    [Markup.button.callback("💰 Custom Amount","dep_custom")]
-  ]));
+  ctx.reply("💳 Choose Deposit Amount:",
+    Markup.inlineKeyboard([
+      packages.map(p => Markup.button.callback(`₦${p}`, `deposit_${p}`)),
+      [Markup.button.callback("💰 Custom Amount","deposit_custom")]
+    ])
+  );
 });
 
-// 💳 SELECT DEPOSIT
-bot.action(/dep_(.+)/, async (ctx)=>{
-  await ctx.answerCbQuery(); // ✅ FIX
-
+// 🔥 HANDLE DEPOSIT BUTTON
+bot.action(/deposit_(.+)/, async (ctx)=>{
   let amount = ctx.match[1];
 
   if(amount === "custom"){
-    customDeposit[ctx.from.id] = true;
+    pendingDeposits[ctx.from.id] = "custom";
     return ctx.reply("💰 Enter amount:");
   }
 
-  pendingDeposits[ctx.from.id] = parseInt(amount);
+  pendingDeposits[ctx.from.id] = amount;
 
   ctx.reply(`💳 Deposit ₦${amount}
 
 Bank: Moniepoint MFB
-Account: 5075903950
-Name: Kamsi Chosen Oragwam
+Account Number: 5075903950
+Account Name: Kamsi Chosen Oragwam
 
-📸 Send screenshot after payment`);
+📸 Send screenshot after payment.`);
 });
 
-// 💰 CUSTOM AMOUNT INPUT
-bot.on("text", (ctx)=>{
-  if(customDeposit[ctx.from.id]){
+// 💰 CUSTOM AMOUNT
+bot.on("text", async (ctx)=>{
+  let id = ctx.from.id;
+
+  if(pendingDeposits[id] === "custom"){
     let amt = parseInt(ctx.message.text);
+    if(isNaN(amt)) return ctx.reply("❌ Invalid amount");
 
-    if(isNaN(amt) || amt < 3000){
-      return ctx.reply("❌ Minimum deposit is ₦3000");
-    }
-
-    pendingDeposits[ctx.from.id] = amt;
-    delete customDeposit[ctx.from.id];
+    pendingDeposits[id] = amt;
 
     ctx.reply(`💳 Deposit ₦${amt}
 
@@ -137,10 +137,8 @@ Send screenshot after payment.`);
   }
 });
 
-// 📸 HANDLE SCREENSHOT
+// 📸 SCREENSHOT
 bot.on("photo", async (ctx)=>{
-  if(!(await checkJoin(ctx))) return;
-
   let id = ctx.from.id;
 
   if(!pendingDeposits[id]){
@@ -150,33 +148,32 @@ bot.on("photo", async (ctx)=>{
   let amount = pendingDeposits[id];
   let file = ctx.message.photo.pop().file_id;
 
-  bot.telegram.sendPhoto(ADMIN_ID, file, {
+  bot.telegram.sendPhoto(ADMIN_ID, file,{
     caption:`📥 Deposit Request
 
 User: ${id}
 Amount: ₦${amount}
 
-Approve:
-/approve_${id}`
+/approve_${id}_${amount}`
   });
 
   ctx.reply("⏳ Waiting for approval...");
+  delete pendingDeposits[id];
 });
 
 // ✅ APPROVE
-bot.command(/approve_(.+)/, (ctx)=>{
+bot.command(/approve_(.+)/,(ctx)=>{
   if(ctx.from.id != ADMIN_ID) return;
 
-  let id = ctx.match[1];
+  let [id,amount] = ctx.match[1].split("_");
+  amount = parseInt(amount);
+
   let user = getUser(id);
-  let amount = pendingDeposits[id] || 0;
 
   user.balance += amount;
   user.deposited += amount;
 
-  delete pendingDeposits[id];
-
-  bot.telegram.sendMessage(id, `✅ Deposit approved! ₦${amount} added`);
+  bot.telegram.sendMessage(id,`✅ ₦${amount} approved`);
   ctx.reply("Approved ✅");
 });
 
@@ -184,146 +181,95 @@ bot.command(/approve_(.+)/, (ctx)=>{
 bot.hears(["💼 Invest","📊 Packages"], async (ctx)=>{
   if(!(await checkJoin(ctx))) return;
 
-  ctx.reply("📊 Choose Package:", Markup.inlineKeyboard(
-    packages.map(p => [Markup.button.callback(`₦${p}`, `invest_${p}`)])
-  ));
+  ctx.reply("📊 Choose Package:",
+    Markup.inlineKeyboard(
+      packages.map(p=>[Markup.button.callback(`₦${p}`,`invest_${p}`)])
+    )
+  );
 });
 
 // 💼 INVEST
 bot.action(/invest_(.+)/, async (ctx)=>{
-  await ctx.answerCbQuery();
-
   let amount = parseInt(ctx.match[1]);
   let user = getUser(ctx.from.id);
 
-  if(amount < 3000){
-    return ctx.reply("❌ Minimum invest is ₦3000");
-  }
-
-  if(user.balance < amount){
-    return ctx.reply("❌ Insufficient balance");
-  }
+  if(amount < 3000) return ctx.reply("❌ Minimum invest ₦3000");
+  if(user.balance < amount) return ctx.reply("❌ Insufficient balance");
 
   user.balance -= amount;
   user.invested = amount;
   user.plan = amount;
   user.start = Date.now();
 
-  // REFERRAL BONUS
   if(user.referredBy){
     let refUser = getUser(user.referredBy);
     let bonus = amount * 0.18;
-
     refUser.balance += bonus;
     refUser.referralEarnings += bonus;
-
-    bot.telegram.sendMessage(user.referredBy,
-      `🎉 You earned ₦${bonus} from referral!`
-    );
   }
 
-  ctx.reply(`✅ Investment Activated!
+  ctx.reply(`✅ Investment Started
 
 💰 ₦${amount}
-📈 Daily: ₦${amount * 0.25}
-⏳ 60 Days`);
+📈 Daily: ₦${amount * 0.25}`);
 });
 
 // 💰 BALANCE
-bot.hears("💰 Balance", async (ctx)=>{
-  if(!(await checkJoin(ctx))) return;
-
+bot.hears("💰 Balance", (ctx)=>{
   let u = getUser(ctx.from.id);
 
   let days = 0;
   let earned = 0;
 
   if(u.start){
-    days = Math.floor((Date.now()-u.start)/(1000*60*60*24));
-    if(days > 60) days = 60;
-
+    days = Math.floor((Date.now()-u.start)/(86400000));
+    if(days>60) days=60;
     earned = u.plan * 0.25 * days;
   }
 
   ctx.reply(`💰 Balance: ₦${u.balance}
 
-📊 Invested: ₦${u.invested}
 📈 Earned: ₦${earned}
-⏳ ${days}/60 days`);
+⏳ Days: ${days}/60`);
 });
 
 // 📤 WITHDRAW
-bot.hears("📤 Withdraw", async (ctx)=>{
-  if(!(await checkJoin(ctx))) return;
-
+bot.hears("📤 Withdraw",(ctx)=>{
   let u = getUser(ctx.from.id);
 
-  if(u.deposited <= 0){
-    return ctx.reply("⚠️ Deposit first");
-  }
+  if(u.deposited<=0) return ctx.reply("❌ Deposit first");
+  if(u.invested<3000) return ctx.reply("❌ Invest minimum ₦3000");
+  if(u.balance<500) return ctx.reply("❌ Min withdraw ₦500");
 
-  if(u.invested < 3000){
-    return ctx.reply("⚠️ Minimum invest is ₦3000");
-  }
-
-  if(u.balance < 500){
-    return ctx.reply("❌ Minimum withdraw is ₦500");
-  }
-
-  let charge = u.balance * 0.10;
+  let charge = u.balance * 0.1;
   let final = u.balance - charge;
 
   u.balance = 0;
 
-  ctx.reply(`💸 Withdrawal Successful
+  ctx.reply(`💸 Withdrawal Sent
 
 Charge: ₦${charge}
-You received: ₦${final}`);
+You get: ₦${final}`);
 });
 
 // 👥 REFERRAL
-bot.hears("👥 Referral", async (ctx)=>{
-  if(!(await checkJoin(ctx))) return;
+bot.hears("👥 Referral",(ctx)=>{
+  let u = getUser(ctx.from.id);
 
-  let user = getUser(ctx.from.id);
+  ctx.reply(`👥 Referral
 
-  ctx.reply(`👥 REFERRAL SYSTEM
-
-Earn 18% bonus
-
-🔗 Link:
+Link:
 https://t.me/${BOT_USERNAME}?start=${ctx.from.id}
 
-👤 ${user.referrals}
-💰 ₦${user.referralEarnings}`);
+Referrals: ${u.referrals}
+Earnings: ₦${u.referralEarnings}`);
 });
 
 // 📜 HISTORY
-bot.hears("📜 History", (ctx)=>{
-  ctx.reply("📜 No history yet (upgrade DB later)");
+bot.hears("📜 History",(ctx)=>{
+  ctx.reply("📜 History coming soon...");
 });
 
-// 🚀 START BOT
-bot.launch()
-  .then(() => console.log("Bot running..."))
-  .catch(err => console.error("Launch error:", err));   
-bot.catch((err, ctx) => {
-  console.error("Bot error:", err);
-});
-process.on("uncaughtException", (err) => {
-  console.error("Uncaught Exception:", err);
-});
-
-process.on("unhandledRejection", (err) => {
-  console.error("Unhandled Rejection:", err);
-});
-
-const express = require("express");
-const app = express();
-
-app.get("/", (req, res) => {
-  res.send("Bot is running...");
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Web server running"));
+// 🚀 START
+bot.launch();
+console.log("Bot running...");
