@@ -304,5 +304,16 @@ bot.hears("📜 History", (ctx)=>{
 });
 
 // 🚀 START BOT
-bot.launch();
-console.log("Bot running...");      
+bot.launch()
+  .then(() => console.log("Bot running..."))
+  .catch(err => console.error("Launch error:", err));   
+bot.catch((err, ctx) => {
+  console.error("Bot error:", err);
+});
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled Rejection:", err);
+});
