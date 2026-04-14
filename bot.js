@@ -4,7 +4,7 @@ const bot = new Telegraf(process.env.TOKEN);
 // 🔐 CONFIG
 const ADMIN_ID = process.env.ADMIN_ID;
 const CHANNEL = "@starfordfreenumbers"; // change
-const GROUP = "@KIfMXtf1_AU2MWJk"; // change
+const GROUP = "@primevestglobalinvestments"; // change
 const BOT_USERNAME = "@Primevestglobal_bot"; // change
 
 // 📦 PACKAGES
@@ -132,6 +132,23 @@ bot.command(/approve_(.+)/, (ctx)=>{
   bot.telegram.sendMessage(id, "✅ Deposit approved! ₦5000 added.");
   ctx.reply("Approved ✅");
 });
+bot.hears("📤 Withdraw", async (ctx)=>{
+  let u = getUser(ctx.from.id);
+
+  if(u.balance < 500) return ctx.reply("Minimum ₦500");
+
+  bot.telegram.sendMessage(ADMIN_ID,
+    `💸 Withdrawal Request
+
+User: ${ctx.from.id}
+Amount: ₦${u.balance}
+
+Approve:
+/pay_${ctx.from.id}`
+  );
+
+  ctx.reply("⏳ Withdrawal pending approval");
+});
 
 // 📊 PACKAGE BUTTONS
 bot.hears(["💼 Invest","📊 Packages"], async (ctx)=>{
@@ -200,6 +217,8 @@ bot.hears("💰 Balance", async (ctx)=>{
 📊 Invested: ₦${u.invested}
 📈 Earned: ₦${earned}
 ⏳ Days: ${days}/60`);
+  let rate = 0.25;
+earned = u.plan * rate * days;
 });
 
 // 📤 WITHDRAW
@@ -260,3 +279,16 @@ app.get("/", (req, res) => {
 });
 
 app.listen(3000, () => console.log("Web server running"));
+
+let history = {};
+
+function addHistory(id, text){
+  if(!history[id]) history[id] = [];
+  history[id].push(text);
+}
+["📜 History"]
+bot.hears("📜 History", (ctx)=>{
+  let h = history[ctx.from.id] || [];
+  ctx.reply(h.length ? h.join("\n") : "No history yet");
+});
+
