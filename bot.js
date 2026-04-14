@@ -251,3 +251,12 @@ https://t.me/${BOT_USERNAME}?start=${ctx.from.id}
 // 🚀 START BOT
 bot.launch();
 console.log("Bot running...");
+
+const express = require("express");
+const app = express();
+
+app.get("/", (req, res) => {
+  res.send("Bot is alive");
+});
+
+app.listen(3000, () => console.log("Web server running"));
