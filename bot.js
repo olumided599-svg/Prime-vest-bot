@@ -4,7 +4,7 @@ const bot = new Telegraf(process.env.TOKEN);
 // 🔐 CONFIG
 const ADMIN_ID = process.env.ADMIN_ID;
 const CHANNEL = "@starfordfreenumbers"; // MUST be public username
-const GROUP = "@YourGroupUsername"; // FIX this (must be public)
+const GROUP = "@primevestglobalinvestments"; // FIX this (must be public)
 const BOT_USERNAME = "Primevestglobal_bot"; // ❌ remove @
 
 // 📦 PACKAGES
