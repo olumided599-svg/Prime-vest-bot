@@ -3,8 +3,8 @@ const bot = new Telegraf(process.env.TOKEN);
 
 // 🔐 CONFIG
 const ADMIN_ID = process.env.ADMIN_ID;
-const CHANNEL = "@https://t.me/starfordfreenumbers"; // change
-const GROUP = "@https://t.me/+KIfMXtf1_AU2MWJk"; // change
+const CHANNEL = "@starfordfreenumbers"; // change
+const GROUP = "@KIfMXtf1_AU2MWJk"; // change
 const BOT_USERNAME = "@Primevestglobal_bot"; // change
 
 // 📦 PACKAGES
